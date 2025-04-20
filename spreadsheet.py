@@ -45,9 +45,9 @@ def _get_titles() -> List[str]:
 
 async def write(expenditure: Expenditure):
     try:
-        month_tab   = _ensure_month_tab()                    # ← today's month
+        month_tab   = _ensure_month_tab()
         range_name  = f"'{month_tab}'!A:C"
-        values = [[expenditure.date, expenditure.product, expenditure.amount]]  
+        values = [[expenditure.date, expenditure.product, expenditure.amount, expenditure.category]]  
         body = {'values': values}
         result = service.spreadsheets().values().append(
             spreadsheetId=import_spreadsheetID(),
@@ -81,9 +81,7 @@ async def create_spreadsheet(service, month: str | None = None) -> str:
 Date/Time Handlers
 '''
 
-def add_headers(
-    service, spreadsheet_id: str, sheet_id: int, headers: List[str]
-) -> None:
+def add_headers(service, spreadsheet_id: str, sheet_id: int, headers: List[str]) -> None:
     """
     ► Append a header row
     ► Centre‑align it
@@ -125,7 +123,7 @@ def add_headers(
 
 def ensure_date_break(service, spreadsheet_id: str, sheet_name: str, today: str | None = None) -> None:
     """
-    Make sure the last written date is *today*; if not, insert two blank rows.
+    Make sure the last written date is *today*; if not, insert one blank rows.
     """
     today = today or current_date_str()
     # Pull the last non‑empty cell in column A
@@ -150,7 +148,7 @@ def ensure_date_break(service, spreadsheet_id: str, sheet_name: str, today: str 
                         "sheetId": _get_sheet_id(service, spreadsheet_id, sheet_name),
                         "dimension": "ROWS",
                         "startIndex": last_row_idx,
-                        "endIndex": last_row_idx + 2,
+                        "endIndex": last_row_idx + 1,
                     },
                     "inheritFromBefore": False,
                 }
@@ -195,19 +193,19 @@ def _get_sheet_id(title: str) -> int:
             return s["properties"]["sheetId"]
     raise KeyError(f"Tab “{title}” not found")
 
-def _add_headers(sheet_id: int) -> None:
-    """Write header row + centre it."""
-    headers = ["Date", "Product", "Price", "Category", "Claimable"]
+def _add_headers(sheet_id: int, title: str) -> None:
+    headers = ["Date", "Product", "Price", "Category"]
 
-    # value write
+    # Write the header row into the *correct* tab:  'April'!A1:D1
+    last_col = chr(64 + len(headers))  # 4 headers -> 'D'
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"A1:{chr(64+len(headers))}1",        # A1:E1
+        range=f"'{title}'!A1:{last_col}1",          # <<< include title
         valueInputOption="USER_ENTERED",
         body={"values": [headers]},
     ).execute()
 
-    # format centre + bold
+    # Centre‑align & bold the same row (uses sheetId, so already correct)
     service.spreadsheets().batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
         body={
@@ -234,14 +232,15 @@ def _add_headers(sheet_id: int) -> None:
         },
     ).execute()
 
+
 def _create_month_tab(title: str) -> None:
-    """Make a new tab for the month and seed headers."""
     res = service.spreadsheets().batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
         body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
     ).execute()
+
     sheet_id = res["replies"][0]["addSheet"]["properties"]["sheetId"]
-    _add_headers(sheet_id)
+    _add_headers(sheet_id, title)
     logging.info(f"Created tab «{title}» ({sheet_id})")
 
 

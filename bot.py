@@ -1,16 +1,18 @@
-import logging
 import os
-from dotenv import load_dotenv
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import telegramcalendar
-
+import threading
+import asyncio
+import logging
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler,
+    ConversationHandler, filters
+)
 from spreadsheet import write
+from utils import find_date, find_month, KEYBOARD_CATEGORIES, DATES, chunk_list, import_spreadsheetID, format_calendar_date
+
 from expenditure import Expenditure
-from utils import find_date, chunk_list, KEYBOARD_CATEGORIES, format_calendar_date, import_token
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
+from telegram.ext import ContextTypes
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -116,6 +118,7 @@ async def save_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info(f"Expenditure updated with category: {category}")
     await query.edit_message_text(f"Category '{category}' chosen.")
     await write_to_spreadsheet(expenditure, update, context)
+    return ConversationHandler.END
 
 async def write_to_spreadsheet(expenditure: Expenditure, update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("Save expense triggered via message.")
@@ -174,46 +177,114 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-if __name__ == '__main__':
-    TOKEN = import_token()
-    logging.info(f"got the token in main! {TOKEN}")
-    application = ApplicationBuilder().token(TOKEN).build()
+# if __name__ == '__main__':
+#     TOKEN = import_token()
+#     logging.info(f"got the token in main! {TOKEN}")
+#     application = ApplicationBuilder().token(TOKEN).build()
 
+#     oneoff_handler = ConversationHandler(
+#         entry_points=[CommandHandler('oneoff', prompt_product_price)],
+#         states={
+#             WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
+#             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+#         },
+#         fallbacks=[CommandHandler('cancel', cancel)],
+#         per_message=False
+#     )
+
+#     calendar_conversation = ConversationHandler(
+#         entry_points=[CommandHandler('calendar', calendar_handler)],
+#         states={
+#             SELECTING_DATE: [CallbackQueryHandler(inline_handler)]
+#         },
+#         fallbacks=[CommandHandler('cancel', cancel)]
+#     )
+
+#     past_handler = ConversationHandler(
+#         entry_points=[CommandHandler('past', calendar_handler)],
+#         states={
+#             SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
+#             WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
+#             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+#         },
+#         fallbacks=[CommandHandler('cancel', cancel)],
+#         per_message=False
+#     )
+
+#     start_handler = CommandHandler('start', start_message)
+#     # past_handler = CommandHandler('past', past_command)
+#     application.add_handler(calendar_conversation)
+
+
+#     application.add_handler(start_handler)
+#     application.add_handler(oneoff_handler)
+#     application.add_handler(past_handler)
+#     application.run_polling()
+
+# --------------------  HEALTH SERVER  -------------------- #
+def run_health_server() -> None:
+    """Tiny web server so Render's port scan succeeds."""
+    class HealthHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"CashBotic is alive!")
+
+    port = int(os.environ.get("PORT", 10000))   # Render injects PORT
+    HTTPServer(("", port), HealthHandler).serve_forever()
+
+threading.Thread(target=run_health_server, daemon=True).start()
+print("🩺 Fake HTTP health server started")
+
+# --------------------  TELEGRAM BOT  --------------------- #
+def run_bot() -> None:
+    """Build Application, register all handlers, start polling."""
+    token = os.getenv("TOKEN")
+    if not token:
+        raise RuntimeError("TOKEN env var not set")
+
+    app = ApplicationBuilder().token(token).build()
+
+    # --- Handler groups -----------------
     oneoff_handler = ConversationHandler(
-        entry_points=[CommandHandler('oneoff', prompt_product_price)],
+        entry_points=[CommandHandler("oneoff", prompt_product_price)],
         states={
-            WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
+            WAITING_FOR_EXPENSE_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+            ],
             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
+        fallbacks=[CommandHandler("cancel", cancel)],
+        per_message=False,
     )
 
     calendar_conversation = ConversationHandler(
-        entry_points=[CommandHandler('calendar', calendar_handler)],
-        states={
-            SELECTING_DATE: [CallbackQueryHandler(inline_handler)]
-        },
-        fallbacks=[CommandHandler('cancel', cancel)]
+        entry_points=[CommandHandler("calendar", calendar_handler)],
+        states={SELECTING_DATE: [CallbackQueryHandler(inline_handler)]},
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     past_handler = ConversationHandler(
-        entry_points=[CommandHandler('past', calendar_handler)],
+        entry_points=[CommandHandler("past", calendar_handler)],
         states={
             SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
-            WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
+            WAITING_FOR_EXPENSE_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+            ],
             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
+        fallbacks=[CommandHandler("cancel", cancel)],
+        per_message=False,
     )
 
-    start_handler = CommandHandler('start', start_message)
-    # past_handler = CommandHandler('past', past_command)
-    application.add_handler(calendar_conversation)
+    app.add_handler(CommandHandler("start", start_message))
+    app.add_handler(oneoff_handler)
+    app.add_handler(calendar_conversation)
+    app.add_handler(past_handler)
 
+    logging.info("🤖 CashBotic polling…")
+    # Synchronous, blocks forever, installs its own signal‑handlers
+    app.run_polling()
 
-    application.add_handler(start_handler)
-    application.add_handler(oneoff_handler)
-    application.add_handler(past_handler)
-    application.run_polling()
+# ---- Start the bot in *main* thread ----------------------
+run_bot()

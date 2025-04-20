@@ -10,7 +10,7 @@ import telegramcalendar
 
 from spreadsheet import write
 from expenditure import Expenditure
-from utils import find_date, chunk_list, KEYBOARD_CATEGORIES, KEYBOARD_CLAIMABLE, import_token
+from utils import find_date, chunk_list, KEYBOARD_CATEGORIES, format_calendar_date, import_token
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 # State constants
 WAITING_FOR_EXPENSE_INPUT = 0
 WAITING_FOR_CATEGORY_CHOICE = 1
-
-# States for conversation handlers
-SELECTING_DATE = 0
+SELECTING_DATE = 2
 
 ### COMMAND HANDLERS ####
 
@@ -37,6 +35,19 @@ async def prompt_product_price(update: Update, context: ContextTypes.DEFAULT_TYP
         text=f"Please send the expense in the format: Product-Price"
     )
     return WAITING_FOR_EXPENSE_INPUT
+
+async def store_date_and_prompt_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    selected_date = query.data 
+    formatted_date = format_calendar_date(selected_date)
+    context.user_data['selected_date'] = formatted_date
+
+    await query.edit_message_text(f"Date selected: {formatted_date}")
+
+    return await prompt_product_price(update, context)
+
 
 async def past_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
@@ -187,8 +198,9 @@ if __name__ == '__main__':
     )
 
     past_handler = ConversationHandler(
-        entry_points=[CommandHandler('oneoff', prompt_product_price)],
+        entry_points=[CommandHandler('past', calendar_handler)],
         states={
+            SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
             WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
         },

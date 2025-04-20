@@ -8,11 +8,13 @@ from telegram.ext import (
     ConversationHandler, filters
 )
 from spreadsheet import write
-from utils import find_date, find_month, KEYBOARD_CATEGORIES, DATES, chunk_list, import_spreadsheetID, format_calendar_date
-
+from utils import find_date, find_month, KEYBOARD_CATEGORIES, DATES, chunk_list, import_spreadsheetID, format_calendar_date, import_token
+import asyncio
 from expenditure import Expenditure
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes
+from dotenv import load_dotenv
+
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -221,31 +223,79 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 #     application.add_handler(past_handler)
 #     application.run_polling()
 
-# --------------------  HEALTH SERVER  -------------------- #
-def run_health_server() -> None:
-    """Tiny web server so Render's port scan succeeds."""
-    class HealthHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"CashBotic is alive!")
+# # --------------------  HEALTH SERVER  -------------------- #
+# def run_health_server() -> None:
+#     """Tiny web server so Render's port scan succeeds."""
+#     class HealthHandler(BaseHTTPRequestHandler):
+#         def do_GET(self):
+#             self.send_response(200)
+#             self.end_headers()
+#             self.wfile.write(b"CashBotic is alive!")
 
-    port = int(os.environ.get("PORT", 10000))   # Render injects PORT
-    HTTPServer(("", port), HealthHandler).serve_forever()
+#     port = int(os.environ.get("PORT", 10000))   # Render injects PORT
+#     HTTPServer(("", port), HealthHandler).serve_forever()
 
-threading.Thread(target=run_health_server, daemon=True).start()
-print("🩺 Fake HTTP health server started")
+# threading.Thread(target=run_health_server, daemon=True).start()
+# print("🩺 Fake HTTP health server started")
 
-# --------------------  TELEGRAM BOT  --------------------- #
-def run_bot() -> None:
-    """Build Application, register all handlers, start polling."""
-    token = os.getenv("TOKEN")
-    if not token:
-        raise RuntimeError("TOKEN env var not set")
+# # --------------------  TELEGRAM BOT  --------------------- #
+# def run_bot() -> None:
+#     """Build Application, register all handlers, start polling."""
+#     token = os.getenv("TOKEN")
+#     if not token:
+#         raise RuntimeError("TOKEN env var not set")
 
+#     app = ApplicationBuilder().token(token).build()
+
+#     # --- Handler groups -----------------
+#     oneoff_handler = ConversationHandler(
+#         entry_points=[CommandHandler("oneoff", prompt_product_price)],
+#         states={
+#             WAITING_FOR_EXPENSE_INPUT: [
+#                 MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+#             ],
+#             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+#         },
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#         per_message=False,
+#     )
+
+#     calendar_conversation = ConversationHandler(
+#         entry_points=[CommandHandler("calendar", calendar_handler)],
+#         states={SELECTING_DATE: [CallbackQueryHandler(inline_handler)]},
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#     )
+
+#     past_handler = ConversationHandler(
+#         entry_points=[CommandHandler("past", calendar_handler)],
+#         states={
+#             SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
+#             WAITING_FOR_EXPENSE_INPUT: [
+#                 MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+#             ],
+#             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+#         },
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#         per_message=False,
+#     )
+
+#     app.add_handler(CommandHandler("start", start_message))
+#     app.add_handler(oneoff_handler)
+#     app.add_handler(calendar_conversation)
+#     app.add_handler(past_handler)
+
+#     logging.info("🤖 CashBotic polling…")
+#     # Synchronous, blocks forever, installs its own signal‑handlers
+#     app.run_polling()
+
+# # ---- Start the bot in *main* thread ----------------------
+# run_bot()
+
+def run_bot():
+    load_dotenv()
+    token = import_token()
     app = ApplicationBuilder().token(token).build()
 
-    # --- Handler groups -----------------
     oneoff_handler = ConversationHandler(
         entry_points=[CommandHandler("oneoff", prompt_product_price)],
         states={
@@ -277,14 +327,34 @@ def run_bot() -> None:
         per_message=False,
     )
 
+    # Register all your handlers here
     app.add_handler(CommandHandler("start", start_message))
     app.add_handler(oneoff_handler)
     app.add_handler(calendar_conversation)
     app.add_handler(past_handler)
 
-    logging.info("🤖 CashBotic polling…")
-    # Synchronous, blocks forever, installs its own signal‑handlers
-    app.run_polling()
+    # Your Render HTTPS URL
+    domain = os.getenv("WEBHOOK_DOMAIN")  
+    logging.info("DOMAIN URL: %s", domain)
+    webhook_path = f"{token}"
+    logging.info("webhook_path URL: %s", webhook_path)
+    webhook_url = f"{domain}/{webhook_path}"
+    logging.info("HTTPS URL: %s", webhook_url)
 
-# ---- Start the bot in *main* thread ----------------------
-run_bot()
+    env = os.getenv("ENV")
+
+    # Set the webhook with Telegram
+    if env == "local":
+        app.run_polling()
+    else:
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=int(os.environ.get("PORT", 10000)),
+            url_path=token,
+            webhook_url=webhook_url,
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
+        )
+
+if __name__ == "__main__":
+    run_bot()

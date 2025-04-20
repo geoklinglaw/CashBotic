@@ -183,8 +183,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def run_bot():
     load_dotenv()
     token = import_token()
-    builder = ApplicationBuilder().token(token)
-    app = builder.build()
+    app = ApplicationBuilder().token(token).build()
 
     oneoff_handler = ConversationHandler(
         entry_points=[CommandHandler("oneoff", prompt_product_price)],
@@ -217,22 +216,13 @@ def run_bot():
         per_message=False,
     )
 
-    # Register all your handlers here
+    # Telegram handlers 
     app.add_handler(CommandHandler("start", start_message))
     app.add_handler(oneoff_handler)
     app.add_handler(calendar_conversation)
     app.add_handler(past_handler)
 
-
-    # ---- Health endpoint so Render stays healthy ----
-    async def healthcheck(request):
-        return web.Response(text="CashBotic is alive!", status=200)
-
-    web_app = web.Application()
-    web_app.router.add_get("/", healthcheck)
-    # -------------------------------------------------
-
-    # Your Render HTTPS URL
+    # Webhook
     domain = os.getenv("WEBHOOK_DOMAIN")  
     logging.info("DOMAIN URL: %s", domain)
     webhook_path = f"{token}"
@@ -249,11 +239,10 @@ def run_bot():
         app.run_webhook(
             listen="0.0.0.0",
             port=int(os.environ.get("PORT", 10000)),
-            url_path=token,
-            webhook_url=webhook_url,
+            url_path=token,                 
+            webhook_url=f"{domain}/{token}",
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True,
-            web_app=web_app 
         )
 
 if __name__ == "__main__":

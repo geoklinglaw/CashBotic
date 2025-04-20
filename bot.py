@@ -7,6 +7,7 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, filters
 )
+from aiohttp import web
 from spreadsheet import write
 from utils import find_date, find_month, KEYBOARD_CATEGORIES, DATES, chunk_list, import_spreadsheetID, format_calendar_date, import_token
 import asyncio
@@ -332,6 +333,15 @@ def run_bot():
     app.add_handler(oneoff_handler)
     app.add_handler(calendar_conversation)
     app.add_handler(past_handler)
+
+
+    # ---- Health endpoint so Render stays healthy ----
+    async def healthcheck(request):
+        return web.Response(text="OK", status=200)
+
+    app._web_app.router.add_get("/", healthcheck)
+    app._web_app.router.add_head("/", healthcheck)
+    # -------------------------------------------------
 
     # Your Render HTTPS URL
     domain = os.getenv("WEBHOOK_DOMAIN")  

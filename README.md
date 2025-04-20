@@ -47,6 +47,9 @@ python bot.py
 1. Fix write to old dates in `/past` command
 <br>
 2. Feature: check expenditure by time or category
+<br>
 3. Feature: add recurring expense or income
+<br>
 4. Feature: connect to DBS API (not sure how possible is this) or some way to automate this process but then again it would render this bot useless :(
+<br>
 5. Feature: generate piechart or any analytics to track my spending

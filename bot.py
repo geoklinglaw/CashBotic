@@ -183,7 +183,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def run_bot():
     load_dotenv()
     token = import_token()
-    app = ApplicationBuilder().token(token).build()
+    builder = ApplicationBuilder().token(token)
+    app = builder.build()
 
     oneoff_handler = ConversationHandler(
         entry_points=[CommandHandler("oneoff", prompt_product_price)],
@@ -230,6 +231,11 @@ def run_bot():
     webhook_url = f"{domain}/{webhook_path}"
     logging.info("HTTPS URL: %s", webhook_url)
 
+    async def healthcheck(request):
+        return web.Response(text="CashBotic is alive!", status=200)
+    web_app = web.Application()
+    web_app.router.add_get("/", healthcheck)
+
     env = os.getenv("ENV")
 
     # Set the webhook with Telegram
@@ -241,6 +247,7 @@ def run_bot():
             port=int(os.environ.get("PORT", 10000)),
             url_path=token,                 
             webhook_url=f"{domain}/{token}",
+            web_app=web_app,
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True,
         )

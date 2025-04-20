@@ -1,5 +1,5 @@
-# https://docs.google.com/spreadsheets/d/1pDeojCOeSrF4xPPduKtqDTDdNdDtQjz5FZfl8clY1jQ/edit?gid=0#gid=0
-
+import os
+import base64
 import pickle
 import logging
 from datetime import date
@@ -8,11 +8,15 @@ from google.oauth2.credentials import Credentials
 from expenditure import Expenditure
 from utils import find_date, find_month, import_spreadsheetID
 
-"""
-Run this file to generate a token.pickle after authenticating your google auth before running the telegram bot
-"""
+if not os.path.exists("token.pickle") and os.path.exists("token.b64.txt"):
+    logging.info("Decoding token.pickle from token.b64.txt...")
+    with open("token.b64.txt", "rb") as f_in:
+        encoded = f_in.read()
+    with open("token.pickle", "wb") as f_out:
+        f_out.write(base64.b64decode(encoded))
+    logging.info("token.pickle created successfully.")
 
-with open('token.pickle', 'rb') as token:
+with open("token.pickle", "rb") as token:
     creds = pickle.load(token)
 
 service = build('sheets', 'v4', credentials=creds)

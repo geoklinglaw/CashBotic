@@ -253,6 +253,7 @@ def run_bot():
             webhook_url=webhook_url,
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True,
+            web_app=web_app 
         )
 
 if __name__ == "__main__":

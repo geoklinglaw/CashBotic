@@ -1,0 +1,15 @@
+{
+  "name": "budgetbot",
+  "version": "1.0.0",
+  "description": "**CashBotic** is a Telegram bot that tracks your expenses and logs them directly to Google Sheets — effortlessly and adorably.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "serverless-python-requirements": "^6.1.2"
+  }
+}

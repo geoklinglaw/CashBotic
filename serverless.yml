@@ -2,13 +2,14 @@ service: cashbotic
 
 provider:
   name: aws
-  runtime: python3.12   # matches Lambda runtime
+  runtime: python3.12  
   region: ap-southeast-2
-  memorySize: 128       # tweak if needed
-  timeout: 10           # Telegram webhook must answer < 30 s
+  memorySize: 256       
+  timeout: 20           
   environment:
     TOKEN: ${env:TOKEN}
     SPREADSHEET_ID: ${env:SPREADSHEET_ID}
+    GOOGLE_TOKEN_B64: ${env:GOOGLE_TOKEN_B64}
 
 functions:
   webhook:
@@ -16,10 +17,10 @@ functions:
     events:
       - http:
           path: webhook
-          method: any        # GET & POST
+          method: any    
 
 plugins:
   - serverless-python-requirements
 custom:
   pythonRequirements:
-    dockerizePip: non-linux  # builds deps in a container, no manual zip
+    dockerizePip: non-linux  

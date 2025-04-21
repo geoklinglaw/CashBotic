@@ -9,6 +9,7 @@ token.b64.txt
 __pycache__/
 *.pyc
 
+node_modules/
 
 venv/
 

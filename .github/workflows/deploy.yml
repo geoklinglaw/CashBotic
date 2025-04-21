@@ -1,5 +1,3 @@
-# arn:aws:iam::190623961363:role/GitHubCashboticDeployRole
-
 name: Deploy Cashbotic
 on:
   push:
@@ -45,4 +43,5 @@ jobs:
         SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
         TOKEN: ${{ secrets.TOKEN }}                  
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
       run: sls deploy --stage prod

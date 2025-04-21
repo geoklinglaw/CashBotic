@@ -1,7 +1,7 @@
 import os, json, asyncio
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler
-from bot_logic import start_message, oneoff_handler, calendar_conversation, past_handler
+from app.bot_logic import start_message, oneoff_handler, calendar_conversation, past_handler
 
 TOKEN = os.environ["TOKEN"]
 
@@ -11,12 +11,13 @@ app.add_handler(oneoff_handler)
 app.add_handler(calendar_conversation)
 app.add_handler(past_handler)
 
-_initialised = False
+# Initialize the Application only once
+initialised = False
 async def ensure_initialised():
-    global _initialised
-    if not _initialised:
+    global initialised
+    if not initialised:
         await app.initialize()
-        _initialised = True
+        initialised = True
 
 async def _run(update):
     await ensure_initialised()
@@ -28,7 +29,13 @@ def lambda_handler(event, context):
 
     if event.get("httpMethod") == "POST":
         update = Update.de_json(json.loads(event["body"]), app.bot)
-        asyncio.run(_run(update))
+
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        loop.run_until_complete(_run(update))
         return {"statusCode": 200, "body": json.dumps({"ok": True})}
 
     return {"statusCode": 405, "body": "Method Not Allowed"}

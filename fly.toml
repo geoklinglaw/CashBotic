@@ -1,0 +1,32 @@
+app = "cashbotic-123"
+primary_region = "sin"
+
+[build]
+
+[env]
+  PORT = "8080"
+  # WEBHOOK_URL = "https://cashbotic-123.fly.dev"
+
+[http_service]
+  internal_port      = 8080
+  force_https        = true
+  auto_start_machines= true
+  # keep at least 1 machine running so context.user_data stays alive
+  min_machines_running = 1
+
+[[services]]
+  internal_port = 8080
+  protocol      = "tcp"
+
+  [[services.ports]]
+    handlers = ["http"]
+    port     = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port     = 443
+
+[[vm]]
+  memory   = "256mb"
+  cpu_kind = "shared"
+  cpus     = 1

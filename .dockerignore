@@ -1,0 +1,19 @@
+# flyctl launch added from .gitignore
+
+**/.env
+**/token.json
+**/token.pickle
+**/credentials.json
+**/token.b64.txt
+**/.serverless
+
+**/__pycache__
+**/*.pyc
+
+**/node_modules
+
+**/venv
+
+
+**/.DS_Store
+fly.toml

@@ -1,4 +1,4 @@
-from utils import escape_markdown_v2
+from app.utils import escape_markdown_v2
 
 class Expenditure:
     def __init__(self, product="", amount="", date="", category=""):

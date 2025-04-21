@@ -8,10 +8,10 @@ from telegram.ext import (
     ConversationHandler, filters
 )
 from aiohttp import web
-from spreadsheet import write
-from utils import find_date, find_month, KEYBOARD_CATEGORIES, DATES, chunk_list, import_spreadsheetID, format_calendar_date, import_token
+from app.spreadsheet import write
+from app.utils import find_date, find_month, KEYBOARD_CATEGORIES, DATES, chunk_list, import_spreadsheetID, format_calendar_date, import_token
 import asyncio
-from expenditure import Expenditure
+from app.expenditure import Expenditure
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes
 from dotenv import load_dotenv

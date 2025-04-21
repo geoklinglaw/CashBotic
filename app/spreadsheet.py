@@ -8,8 +8,8 @@ import os, base64, pickle, logging
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from expenditure import Expenditure
-from utils import find_date, find_month, current_date_str, find_month_name, import_spreadsheetID
+from app.expenditure import Expenditure
+from app.utils import find_date, find_month, current_date_str, find_month_name, import_spreadsheetID
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError

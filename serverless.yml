@@ -24,3 +24,7 @@ plugins:
 custom:
   pythonRequirements:
     dockerizePip: non-linux  
+
+outputs:
+  apiGatewayUrl:
+    value: https://${aws:restApiId}.execute-api.${aws:region}.amazonaws.com/${sls:stage}

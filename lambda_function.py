@@ -12,11 +12,12 @@ app.add_handler(calendar_conversation)
 app.add_handler(past_handler)
 
 _initialised = False
-async def ensure_initialised() -> None:
+async def ensure_initialised():
     global _initialised
     if not _initialised:
         await app.initialize()
         _initialised = True
+
 
 async def _run(update):
     await ensure_initialised()
@@ -24,16 +25,11 @@ async def _run(update):
 
 def lambda_handler(event, context):
     if event.get("httpMethod") == "GET":
-        return {"statusCode": 200, "body": "ok"}
+        return {"statusCode": 200, "body": "ok"}   # health‑check
 
     if event.get("httpMethod") == "POST":
-        try:
-            update = Update.de_json(json.loads(event["body"]), app.bot)
-            asyncio.run(_run(update))
-            return {"statusCode": 200, "body": json.dumps({"ok": True})}
-        except Exception as e:
-            # log and reply 500 so Telegram retries
-            print("🔥 Lambda exception:", str(e))
-            return {"statusCode": 500, "body": "error"}
+        update = Update.de_json(json.loads(event["body"]), app.bot)
+        asyncio.run(_run(update))
+        return {"statusCode": 200, "body": json.dumps({"ok": True})}
 
     return {"statusCode": 405, "body": "Method Not Allowed"}

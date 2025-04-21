@@ -45,3 +45,15 @@ jobs:
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
       run: sls deploy --stage prod
+
+    - name: Set Telegram Webhook
+      env:
+        TOKEN: ${{ secrets.TOKEN }}
+      run: |
+        # read the URL from the CloudFormation output
+        url=$(aws cloudformation describe-stacks \
+              --stack-name cashbotic-prod-webhook \
+              --query "Stacks[0].Outputs[?OutputKey=='apiGatewayUrl'].OutputValue" \
+              --output text)
+        curl "https://api.telegram.org/bot${TOKEN}/setWebhook" \
+              -d "url=${url}/webhook"

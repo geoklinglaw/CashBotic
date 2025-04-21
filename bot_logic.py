@@ -179,78 +179,109 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('Operation cancelled.')
     return ConversationHandler.END
 
+# Handlers
+oneoff_handler = ConversationHandler(
+    entry_points=[CommandHandler("oneoff", prompt_product_price)],
+    states={
+        WAITING_FOR_EXPENSE_INPUT: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+        ],
+        WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+    per_message=False,
+)
 
-def run_bot():
-    load_dotenv()
-    token = import_token()
-    builder = ApplicationBuilder().token(token)
-    app = builder.build()
+calendar_conversation = ConversationHandler(
+    entry_points=[CommandHandler("calendar", calendar_handler)],
+    states={SELECTING_DATE: [CallbackQueryHandler(inline_handler)]},
+    fallbacks=[CommandHandler("cancel", cancel)],
+)
 
-    oneoff_handler = ConversationHandler(
-        entry_points=[CommandHandler("oneoff", prompt_product_price)],
-        states={
-            WAITING_FOR_EXPENSE_INPUT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
-            ],
-            WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=False,
-    )
+past_handler = ConversationHandler(
+    entry_points=[CommandHandler("past", calendar_handler)],
+    states={
+        SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
+        WAITING_FOR_EXPENSE_INPUT: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+        ],
+        WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+    per_message=False,
+)
 
-    calendar_conversation = ConversationHandler(
-        entry_points=[CommandHandler("calendar", calendar_handler)],
-        states={SELECTING_DATE: [CallbackQueryHandler(inline_handler)]},
-        fallbacks=[CommandHandler("cancel", cancel)],
-    )
+# def run_bot():
+#     load_dotenv()
+#     token = import_token()
+#     builder = ApplicationBuilder().token(token)
+#     app = builder.build()
 
-    past_handler = ConversationHandler(
-        entry_points=[CommandHandler("past", calendar_handler)],
-        states={
-            SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
-            WAITING_FOR_EXPENSE_INPUT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
-            ],
-            WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=False,
-    )
+#     oneoff_handler = ConversationHandler(
+#         entry_points=[CommandHandler("oneoff", prompt_product_price)],
+#         states={
+#             WAITING_FOR_EXPENSE_INPUT: [
+#                 MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+#             ],
+#             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+#         },
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#         per_message=False,
+#     )
 
-    # Telegram handlers 
-    app.add_handler(CommandHandler("start", start_message))
-    app.add_handler(oneoff_handler)
-    app.add_handler(calendar_conversation)
-    app.add_handler(past_handler)
+#     calendar_conversation = ConversationHandler(
+#         entry_points=[CommandHandler("calendar", calendar_handler)],
+#         states={SELECTING_DATE: [CallbackQueryHandler(inline_handler)]},
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#     )
 
-    # Webhook
-    domain = os.getenv("WEBHOOK_DOMAIN")  
-    logging.info("DOMAIN URL: %s", domain)
-    webhook_path = f"{token}"
-    logging.info("webhook_path URL: %s", webhook_path)
-    webhook_url = f"{domain}/{webhook_path}"
-    logging.info("HTTPS URL: %s", webhook_url)
+#     past_handler = ConversationHandler(
+#         entry_points=[CommandHandler("past", calendar_handler)],
+#         states={
+#             SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
+#             WAITING_FOR_EXPENSE_INPUT: [
+#                 MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)
+#             ],
+#             WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+#         },
+#         fallbacks=[CommandHandler("cancel", cancel)],
+#         per_message=False,
+#     )
 
-    async def healthcheck(request):
-        return web.Response(text="CashBotic is alive!", status=200)
-    web_app = web.Application()
-    web_app.router.add_get("/", healthcheck)
+#     # Telegram handlers 
+#     app.add_handler(CommandHandler("start", start_message))
+#     app.add_handler(oneoff_handler)
+#     app.add_handler(calendar_conversation)
+#     app.add_handler(past_handler)
 
-    env = os.getenv("ENV")
+#     # Webhook
+#     domain = os.getenv("WEBHOOK_DOMAIN")  
+#     logging.info("DOMAIN URL: %s", domain)
+#     webhook_path = f"{token}"
+#     logging.info("webhook_path URL: %s", webhook_path)
+#     webhook_url = f"{domain}/{webhook_path}"
+#     logging.info("HTTPS URL: %s", webhook_url)
 
-    # Set the webhook with Telegram
-    if env == "local":
-        app.run_polling()
-    else:
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=int(os.environ.get("PORT", 10000)),
-            url_path=token,                 
-            webhook_url=f"{domain}/{token}",
-            web_app=web_app,
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True,
-        )
+#     async def healthcheck(request):
+#         return web.Response(text="CashBotic is alive!", status=200)
+#     web_app = web.Application()
+#     web_app.router.add_get("/", healthcheck)
 
-if __name__ == "__main__":
-    run_bot()
+#     env = os.getenv("ENV")
+
+#     # Set the webhook with Telegram
+#     if env == "local":
+#         app.run_polling()
+#     else:
+#         app.run_webhook(
+#             listen="0.0.0.0",
+#             port=int(os.environ.get("PORT", 10000)),
+#             url_path=token,                 
+#             webhook_url=f"{domain}/{token}",
+#             web_app=web_app,
+#             allowed_updates=Update.ALL_TYPES,
+#             drop_pending_updates=True,
+#         )
+
+# if __name__ == "__main__":
+#     run_bot()

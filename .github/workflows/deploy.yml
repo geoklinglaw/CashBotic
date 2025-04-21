@@ -20,7 +20,7 @@ jobs:
     - name: Configure AWS credentials (OIDC)
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::<your-account-id>:role/GitHubCashboticDeployRole
+        role-to-assume: arn:aws:iam::190623961363:role/GitHubCashboticDeployRole
         aws-region: ap-southeast-2
 
     - name: Set up Node

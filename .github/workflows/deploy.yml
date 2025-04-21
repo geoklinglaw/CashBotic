@@ -28,8 +28,11 @@ jobs:
       with:
         node-version: 18
 
-    - name: Install Serverless CLI
-      run: npm install -g serverless serverless-python-requirements
+    - name: Install Serverless + plugins
+      run: |
+        npm ci
+        npx serverless --version
+      
 
     - name: Deploy with Serverless
       env:
@@ -37,14 +40,14 @@ jobs:
         TOKEN: ${{ secrets.TOKEN }}
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         GOOGLE_TOKEN_B64: ${{ secrets.GOOGLE_TOKEN_B64 }}
-      run: sls deploy --stage prod
+      run: npx serverless deploy --stage prod
 
     - name: Set Telegram Webhook
       env:
         TOKEN: ${{ secrets.TOKEN }}
       run: |
         url=$(aws cloudformation describe-stacks \
-          --stack-name cashbotic-prod-webhook \
+          --stack-name cashbotic-prod \
           --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayUrl'].OutputValue" \
           --output text)
         curl "https://api.telegram.org/bot${TOKEN}/setWebhook" \

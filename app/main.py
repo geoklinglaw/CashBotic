@@ -31,21 +31,19 @@ async def healthcheck(_):
     return web.Response(text="CashBotic is alive!")
 
 def run():
-    web_app = web.Application()
-    web_app.router.add_post("/webhook", handle)
-    web_app.router.add_get("/", healthcheck)
-
     if WEBHOOK_URL:
-        logger.info("Running in webhook mode port {PORT}")
+        logger.info(f"Running in webhook mode on port {PORT}")
         app_telegram.run_webhook(
             listen="0.0.0.0",
             port=PORT,
             webhook_url=f"{WEBHOOK_URL}/webhook",
-            web_app=web_app,
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
         )
     else:
         logger.info("Running in polling mode")
         app_telegram.run_polling()
+
 
 if __name__ == "__main__":
     run()

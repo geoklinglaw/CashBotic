@@ -2,10 +2,10 @@ service: cashbotic
 
 provider:
   name: aws
-  runtime: python3.12  
+  runtime: python3.12
   region: ap-southeast-2
-  memorySize: 256       
-  timeout: 20           
+  memorySize: 256
+  timeout: 20
   environment:
     TOKEN: ${env:TOKEN}
     SPREADSHEET_ID: ${env:SPREADSHEET_ID}
@@ -17,14 +17,23 @@ functions:
     events:
       - http:
           path: webhook
-          method: any    
+          method: any
 
 plugins:
   - serverless-python-requirements
+
 custom:
   pythonRequirements:
-    dockerizePip: non-linux  
+    dockerizePip: non-linux
 
-outputs:
-  apiGatewayUrl:
-    value: https://${aws:restApiId}.execute-api.${aws:region}.amazonaws.com/${sls:stage}
+resources:
+  Outputs:
+    ApiGatewayUrl:
+      Description: "API Gateway endpoint URL"
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api.${self:provider.region}.amazonaws.com/"
+            - "${sls:stage}"

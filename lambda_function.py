@@ -18,14 +18,13 @@ async def ensure_initialised():
         await app.initialize()
         _initialised = True
 
-
 async def _run(update):
     await ensure_initialised()
     await app.process_update(update)
 
 def lambda_handler(event, context):
     if event.get("httpMethod") == "GET":
-        return {"statusCode": 200, "body": "ok"}   # health‑check
+        return {"statusCode": 200, "body": "ok"}
 
     if event.get("httpMethod") == "POST":
         update = Update.de_json(json.loads(event["body"]), app.bot)

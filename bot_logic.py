@@ -189,7 +189,7 @@ oneoff_handler = ConversationHandler(
         WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
-    per_message=False,
+    # per_message=False,
 )
 
 calendar_conversation = ConversationHandler(
@@ -208,7 +208,7 @@ past_handler = ConversationHandler(
         WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
-    per_message=False,
+    # per_message=False,
 )
 
 # def run_bot():

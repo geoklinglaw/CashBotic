@@ -4,6 +4,8 @@ import pickle
 import logging
 from datetime import date
 from typing import List
+import os, base64, pickle, logging
+
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from expenditure import Expenditure
@@ -12,18 +14,41 @@ from utils import find_date, find_month, current_date_str, find_month_name, impo
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-if not os.path.exists("token.pickle") and os.path.exists("token.b64.txt"):
-    logging.info("Decoding token.pickle from token.b64.txt...")
-    with open("token.b64.txt", "rb") as f_in:
-        encoded = f_in.read()
-    with open("token.pickle", "wb") as f_out:
-        f_out.write(base64.b64decode(encoded))
-    logging.info("token.pickle created successfully.")
+def load_google_creds() -> Credentials:
+    """
+    Priority order:
+    1. GOOGLE_TOKEN_B64 env var  (CI / Lambda)
+    2. token.pickle file         (local dev – already decoded once)
+    3. token.b64.txt file        (local first‑run – will decode to token.pickle)
+    """
+    # 1️⃣  Cloud / CI path
+    b64_env = os.getenv("GOOGLE_TOKEN_B64")
+    if b64_env:
+        logging.info("Loading Google creds from env GOOGLE_TOKEN_B64")
+        return pickle.loads(base64.b64decode(b64_env))
 
-with open("token.pickle", "rb") as token:
-    creds = pickle.load(token)
+    # 2️⃣  Local dev – token.pickle already present
+    if os.path.exists("token.pickle"):
+        logging.info("Loading Google creds from token.pickle")
+        with open("token.pickle", "rb") as f:
+            return pickle.load(f)
 
-service = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    # 3️⃣  Local first‑time setup – decode token.b64.txt
+    if os.path.exists("token.b64.txt"):
+        logging.info("Decoding token.b64.txt → token.pickle for future runs")
+        with open("token.b64.txt", "rb") as f_in, open("token.pickle", "wb") as f_out:
+            f_out.write(base64.b64decode(f_in.read()))
+        with open("token.pickle", "rb") as f:
+            return pickle.load(f)
+
+    raise FileNotFoundError(
+        "Could not find Google credentials – set GOOGLE_TOKEN_B64 "
+        "or provide token.pickle / token.b64.txt"
+    )
+
+creds: Credentials = load_google_creds()
+service = build("sheets", "v4", credentials=creds)
+
 SPREADSHEET_ID = import_spreadsheetID()         
 MONTH_TAB      = find_month_name()   
 titles = [

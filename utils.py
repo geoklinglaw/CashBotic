@@ -76,4 +76,4 @@ DATES = {
 
 # STANDARD KEYBOARDS
 KEYBOARD_CATEGORIES = ["Income", "Food", "Transport", "Education", "Entertainment", "Wants", "Gifts", "Sustenance",]
-
+HEADERS = ["Date", "Product", "Price", "Category", "Claimable"]

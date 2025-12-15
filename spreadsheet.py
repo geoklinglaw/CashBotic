@@ -7,7 +7,7 @@ from typing import List
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from expenditure import Expenditure
-from utils import find_date, find_month, current_date_str, find_month_name, import_spreadsheetID
+from utils import find_date, find_month, current_date_str, find_month_name, import_spreadsheetID, HEADERS
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -24,15 +24,14 @@ with open("token.pickle", "rb") as token:
     creds = pickle.load(token)
 
 service = build("sheets", "v4", credentials=creds, cache_discovery=False)
-SPREADSHEET_ID = import_spreadsheetID()         
-MONTH_TAB      = find_month_name()   
+SPREADSHEET_ID = import_spreadsheetID()
+MONTH_TAB = find_month_name()
 titles = [
     s["properties"]["title"]
     for s in service.spreadsheets()
-                   .get(spreadsheetId=SPREADSHEET_ID, includeGridData=False)
-                   .execute()["sheets"]
+    .get(spreadsheetId=SPREADSHEET_ID, includeGridData=False)
+    .execute()["sheets"]
 ]
-
 
 
 def _get_titles() -> List[str]:
@@ -45,9 +44,9 @@ def _get_titles() -> List[str]:
 
 async def write(expenditure: Expenditure):
     try:
-        month_tab   = _ensure_month_tab()                    # ← today's month
-        range_name  = f"'{month_tab}'!A:C"
-        values = [[expenditure.date, expenditure.product, expenditure.amount]]  
+        month_tab = _ensure_month_tab()
+        range_name = f"'{month_tab}'!A:C"
+        values = [[expenditure.date, expenditure.product, expenditure.amount]]
         body = {'values': values}
         result = service.spreadsheets().values().append(
             spreadsheetId=import_spreadsheetID(),
@@ -61,25 +60,25 @@ async def write(expenditure: Expenditure):
         return None
 
 
-
 async def create_spreadsheet(service, month: str | None = None) -> str:
-  try:
-    month = month or find_month()
-    spreadsheet = {"properties": {"title": month}}
-    spreadsheet = (
-        service.spreadsheets()
-        .create(body=spreadsheet, fields=import_spreadsheetID())
-        .execute()
-    )
-    print(f"Spreadsheet ID: {(spreadsheet.get(import_spreadsheetID()))}")
-    return spreadsheet.get("spreadsheetId")
-  except HttpError as error:
-    print(f"An error occurred: {error}")
-    return error
+    try:
+        month = month or find_month()
+        spreadsheet = {"properties": {"title": month}}
+        spreadsheet = (
+            service.spreadsheets()
+            .create(body=spreadsheet, fields=import_spreadsheetID())
+            .execute()
+        )
+        print(f"Spreadsheet ID: {(spreadsheet.get(import_spreadsheetID()))}")
+        return spreadsheet.get("spreadsheetId")
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return error
 
 '''
 Date/Time Handlers
 '''
+
 
 def add_headers(
     service, spreadsheet_id: str, sheet_id: int, headers: List[str]
@@ -164,6 +163,8 @@ def ensure_date_break(service, spreadsheet_id: str, sheet_name: str, today: str 
 '''
 Sheet creation
 '''
+
+
 def create_month_tab(service, spreadsheet_id: str) -> int:
     """
     Create a *new worksheet* named for the current month,
@@ -181,10 +182,11 @@ def create_month_tab(service, spreadsheet_id: str) -> int:
         service,
         spreadsheet_id,
         sheet_id,
-        ["Date", "Product", "Price", "Category", "Claimable"],
+        HEADERS,
     )
     logging.info(f"Created new tab «{title}» ({sheet_id})")
     return sheet_id
+
 
 def _get_sheet_id(title: str) -> int:
     meta = service.spreadsheets().get(
@@ -195,19 +197,18 @@ def _get_sheet_id(title: str) -> int:
             return s["properties"]["sheetId"]
     raise KeyError(f"Tab “{title}” not found")
 
+
 def _add_headers(sheet_id: int) -> None:
     """Write header row + centre it."""
-    headers = ["Date", "Product", "Price", "Category", "Claimable"]
+    logging.info("ADDING HEADERS")
 
-    # value write
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"A1:{chr(64+len(headers))}1",        # A1:E1
+        range=f"A1:{chr(64+len(HEADERS))}1",
         valueInputOption="USER_ENTERED",
-        body={"values": [headers]},
+        body={"values": [HEADERS]},
     ).execute()
 
-    # format centre + bold
     service.spreadsheets().batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
         body={
@@ -219,7 +220,7 @@ def _add_headers(sheet_id: int) -> None:
                             "startRowIndex": 0,
                             "endRowIndex": 1,
                             "startColumnIndex": 0,
-                            "endColumnIndex": len(headers),
+                            "endColumnIndex": len(HEADERS),
                         },
                         "cell": {
                             "userEnteredFormat": {
@@ -233,6 +234,7 @@ def _add_headers(sheet_id: int) -> None:
             ]
         },
     ).execute()
+
 
 def _create_month_tab(title: str) -> None:
     """Make a new tab for the month and seed headers."""

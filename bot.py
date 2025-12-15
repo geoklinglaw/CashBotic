@@ -12,7 +12,8 @@ from spreadsheet import write
 from expenditure import Expenditure
 from utils import find_date, chunk_list, KEYBOARD_CATEGORIES, format_calendar_date, import_token
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # State constants
@@ -22,11 +23,13 @@ SELECTING_DATE = 2
 
 ### COMMAND HANDLERS ####
 
+
 async def start_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=f"Hello {update.effective_user.first_name}! Welcome to your expenditure tracker."
     )
+
 
 async def prompt_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("Entered prompt_product_price()")
@@ -36,11 +39,12 @@ async def prompt_product_price(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     return WAITING_FOR_EXPENSE_INPUT
 
+
 async def store_date_and_prompt_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
 
-    selected_date = query.data 
+    selected_date = query.data
     formatted_date = format_calendar_date(selected_date)
     context.user_data['selected_date'] = formatted_date
 
@@ -54,6 +58,7 @@ async def past_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=update.effective_chat.id,
         text=f"Please send the expense in the format: Intended Date(dd/mm/yy)-Product-Price"
     )
+
 
 def parse_product_price(user_input: str) -> Expenditure:
     """
@@ -92,18 +97,20 @@ async def validate_and_prompt_category(update: Update, context: ContextTypes.DEF
         expenditure = parse_product_price(user_input)
         context.user_data["expenditure"] = expenditure
 
-        keyboard = [[InlineKeyboardButton(cat, callback_data=cat) for cat in row] for row in chunk_list(KEYBOARD_CATEGORIES, 3)]
+        keyboard = [[InlineKeyboardButton(cat, callback_data=cat) for cat in row]
+                    for row in chunk_list(KEYBOARD_CATEGORIES, 3)]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
         return WAITING_FOR_CATEGORY_CHOICE
-    
+
     except ValueError as e:
         logging.exception("ValueError occurred while processing user input.")
         await update.message.reply_text(
             "Incorrect format. Please use 'Product-Price' format (e.g., 'Coffee-3.50')."
         )
         return WAITING_FOR_EXPENSE_INPUT
-    
+
+
 async def save_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -115,7 +122,15 @@ async def save_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
     expenditure.category = category
     logging.info(f"Expenditure updated with category: {category}")
     await query.edit_message_text(f"Category '{category}' chosen.")
-    await write_to_spreadsheet(expenditure, update, context)
+
+    result = await write_to_spreadsheet(expenditure, update, context)
+
+    if result == ConversationHandler.END:
+        if "expenditure" in context.user_data:
+            del context.user_data["expenditure"]
+
+    return result
+
 
 async def write_to_spreadsheet(expenditure: Expenditure, update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("Save expense triggered via message.")
@@ -126,28 +141,31 @@ async def write_to_spreadsheet(expenditure: Expenditure, update: Update, context
     try:
         result = await write(expenditure)
         logging.info(f"Write result: {result}")
-        
+
         if result:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=f"Successfully saved: {expenditure}",
                 parse_mode='MarkdownV2'
             )
+            return ConversationHandler.END
         else:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Failed to save the expense (no result returned)."
+                text="Failed to save the expense. Please try entering the expense again."
             )
+            return WAITING_FOR_EXPENSE_INPUT
     except Exception as e:
         logging.exception("Exception while writing to spreadsheet:")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="⚠️ An error occurred while saving to the spreadsheet. Please try again later."
+            text="⚠️ An error occurred while saving to the spreadsheet. Please try entering the expense again."
         )
-
-    return ConversationHandler.END
+        return WAITING_FOR_EXPENSE_INPUT
 
 # Calendar handler to display the calendar
+
+
 async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Please select a date:",
@@ -156,10 +174,12 @@ async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SELECTING_DATE
 
 # Inline handler to process calendar interactions
+
+
 async def inline_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()  # Acknowledge the callback query
-    
+    await query.answer()
+
     selected, date = telegramcalendar.process_calendar_selection(None, update)
     if selected:
         await query.edit_message_text(
@@ -168,7 +188,8 @@ async def inline_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return ConversationHandler.END
     return SELECTING_DATE
-        
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('Operation cancelled.')
     return ConversationHandler.END
@@ -211,7 +232,6 @@ if __name__ == '__main__':
     start_handler = CommandHandler('start', start_message)
     # past_handler = CommandHandler('past', past_command)
     application.add_handler(calendar_conversation)
-
 
     application.add_handler(start_handler)
     application.add_handler(oneoff_handler)

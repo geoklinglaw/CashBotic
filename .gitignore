@@ -2,6 +2,7 @@
 .env
 token.json
 token.pickle
+token.pickle.b64
 credentials.json
 token.b64.txt
 

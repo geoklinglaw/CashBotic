@@ -37,6 +37,12 @@ python generate_token.py
 ```
 This will open a browser window for Google login.
 
+### 4. Convert token pickle to base 64
+Run the following script to convert the token.pickle file to a base64 string:
+```
+base64 -i token.pickle -o token.pickle.b64
+```
+
 ### 4. Start the bot! 🎉
 
 ```

@@ -12,17 +12,24 @@ from utils import find_date, find_month, current_date_str, find_month_name, impo
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-if not os.path.exists("token.pickle") and os.path.exists("token.b64.txt"):
-    logging.info("Decoding token.pickle from token.b64.txt...")
-    with open("token.b64.txt", "rb") as f_in:
-        encoded = f_in.read()
-    with open("token.pickle", "wb") as f_out:
-        f_out.write(base64.b64decode(encoded))
-    logging.info("token.pickle created successfully.")
 
-with open("token.pickle", "rb") as token:
-    creds = pickle.load(token)
+def load_google_credentials():
+    """
+    Load Google OAuth credentials from Railway environment variable.
+    """
+    b64 = os.environ.get("GOOGLE_TOKEN_PICKLE_B64")
+    if not b64:
+        raise RuntimeError("GOOGLE_TOKEN_PICKLE_B64 not set")
 
+    logging.info("Loading Google credentials from environment variable")
+
+    token_bytes = base64.b64decode(b64)
+    creds = pickle.loads(token_bytes)
+
+    return creds
+
+
+creds = load_google_credentials()
 service = build("sheets", "v4", credentials=creds, cache_discovery=False)
 SPREADSHEET_ID = import_spreadsheetID()
 MONTH_TAB = find_month_name()

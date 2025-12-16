@@ -1,6 +1,9 @@
 import logging
 import os
 from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+import uvicorn
+import asyncio
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
@@ -236,4 +239,25 @@ if __name__ == '__main__':
     application.add_handler(start_handler)
     application.add_handler(oneoff_handler)
     application.add_handler(past_handler)
-    application.run_polling()
+
+    app = FastAPI()
+
+    @app.on_event("startup")
+    async def on_startup():
+        await application.initialize()
+
+    @app.post("/webhook")
+    async def telegram_webhook(request: Request):
+        data = await request.json()
+        update = Update.de_json(data, application.bot)
+        await application.process_update(update)
+        return {"ok": True}
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(
+        "main:app",   # change "main" if your file name differs
+        host="0.0.0.0",
+        port=port,
+    )

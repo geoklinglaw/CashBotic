@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 import uvicorn
-import asyncio
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
@@ -198,66 +197,68 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+
+# Deployment
+app = FastAPI()
+TOKEN = import_token()
+logging.info(f"got the token in main! {TOKEN}")
+application = ApplicationBuilder().token(TOKEN).build()
+
+oneoff_handler = ConversationHandler(
+    entry_points=[CommandHandler('oneoff', prompt_product_price)],
+    states={
+        WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
+        WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+    },
+    fallbacks=[CommandHandler('cancel', cancel)],
+    per_message=False
+)
+
+calendar_conversation = ConversationHandler(
+    entry_points=[CommandHandler('calendar', calendar_handler)],
+    states={
+        SELECTING_DATE: [CallbackQueryHandler(inline_handler)]
+    },
+    fallbacks=[CommandHandler('cancel', cancel)]
+)
+
+past_handler = ConversationHandler(
+    entry_points=[CommandHandler('past', calendar_handler)],
+    states={
+        SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
+        WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
+        WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
+    },
+    fallbacks=[CommandHandler('cancel', cancel)],
+    per_message=False
+)
+
+start_handler = CommandHandler('start', start_message)
+# past_handler = CommandHandler('past', past_command)
+application.add_handler(calendar_conversation)
+
+application.add_handler(start_handler)
+application.add_handler(oneoff_handler)
+application.add_handler(past_handler)
+
+@app.on_event("startup")
+async def on_startup():
+    await application.initialize()
+
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    logger.info("📩 Webhook hit by Telegram")
+    data = await request.json()
+    update = Update.de_json(data, application.bot)
+    await application.process_update(update)
+    return {"ok": True}
+
+
+
 if __name__ == '__main__':
-    TOKEN = import_token()
-    logging.info(f"got the token in main! {TOKEN}")
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    oneoff_handler = ConversationHandler(
-        entry_points=[CommandHandler('oneoff', prompt_product_price)],
-        states={
-            WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
-            WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
-    )
-
-    calendar_conversation = ConversationHandler(
-        entry_points=[CommandHandler('calendar', calendar_handler)],
-        states={
-            SELECTING_DATE: [CallbackQueryHandler(inline_handler)]
-        },
-        fallbacks=[CommandHandler('cancel', cancel)]
-    )
-
-    past_handler = ConversationHandler(
-        entry_points=[CommandHandler('past', calendar_handler)],
-        states={
-            SELECTING_DATE: [CallbackQueryHandler(store_date_and_prompt_price)],
-            WAITING_FOR_EXPENSE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, validate_and_prompt_category)],
-            WAITING_FOR_CATEGORY_CHOICE: [CallbackQueryHandler(save_expense)],
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
-    )
-
-    start_handler = CommandHandler('start', start_message)
-    # past_handler = CommandHandler('past', past_command)
-    application.add_handler(calendar_conversation)
-
-    application.add_handler(start_handler)
-    application.add_handler(oneoff_handler)
-    application.add_handler(past_handler)
-
-    app = FastAPI()
-
-    @app.on_event("startup")
-    async def on_startup():
-        await application.initialize()
-
-    @app.post("/webhook")
-    async def telegram_webhook(request: Request):
-        data = await request.json()
-        update = Update.de_json(data, application.bot)
-        await application.process_update(update)
-        return {"ok": True}
-
-
-if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(
-        "main:app",   # change "main" if your file name differs
+        "bot:app",
         host="0.0.0.0",
         port=port,
     )

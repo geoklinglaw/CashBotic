@@ -4,28 +4,41 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+
 def import_token():
     load_dotenv()
     token = os.getenv("TOKEN")
 
     if not token:
-        raise ValueError("Bot token not found! Make sure it's defined in the .env file.")
+        raise ValueError(
+            "Bot token not found! Make sure it's defined in the .env file.")
     return token
+
 
 def import_spreadsheetID():
     load_dotenv()
     token = os.getenv("SPREADSHEET_ID")
     if not token:
-        raise ValueError("Bot token not found! Make sure it's defined in the .env file.")
+        raise ValueError(
+            "Bot token not found! Make sure it's defined in the .env file.")
     return token
 
 
-def find_month():
-    return find_date().month
+def find_month(date_str: str | None = None) -> str:
+    """
+    Return the month’s English name given a dd/MM/yyyy string.
+    If no date provided, uses today.
+    """
+    date_str = date_str or find_date()
+    logging.info(f"DATEE {date_str}")
+    mm = date_str[5:7]
+    return DATES[mm]
 
-def find_date():
-    return datetime.now(tz=ZoneInfo("Asia/Singapore"))
-    
+def find_date() -> str:
+    """dd/MM/yyyy in Asia/Singapore (GMT+8)."""
+    sg = ZoneInfo("Asia/Singapore")
+    return datetime.now(tz=sg).strftime("%Y-%m-%d")
+
 def escape_markdown_v2(text):
     escape_chars = '_*[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
@@ -35,6 +48,8 @@ def chunk_list(lst, n):
     return [lst[i:i + n] for i in range(0, len(lst), n)]
 
 # format date from CALENDAR;DAY;2025;4;10 to 10/04/25
+
+
 def format_calendar_date(raw_date):
     try:
         _, _, year, month, day = raw_date.split(';')
@@ -43,20 +58,6 @@ def format_calendar_date(raw_date):
     except Exception as e:
         print(f"Error formatting date: {e}")
         return raw_date
-
-def current_date_str() -> str:
-    """dd/MM/yyyy in Asia/Singapore (GMT+8)."""
-    sg = ZoneInfo("Asia/Singapore")
-    return datetime.now(tz=sg).strftime("%d/%m/%Y")
-
-def find_month_name(date_str: str | None = None) -> str:
-    """
-    Return the month’s English name given a dd/MM/yyyy string.
-    If no date provided, uses today.
-    """
-    date_str = date_str or current_date_str()
-    mm = date_str[3:5]
-    return DATES[mm]
 
 
 DATES = {
@@ -75,5 +76,17 @@ DATES = {
 }
 
 # STANDARD KEYBOARDS
-KEYBOARD_CATEGORIES = ["Income", "Food", "Transport", "Education", "Entertainment", "Wants", "Gifts", "Sustenance",]
-HEADERS = ["Date", "Product", "Price", "Category", "Claimable"]
+KEYBOARD_CATEGORIES = ["Income", "Food", "Transport", "Education",
+                       "Shopping", "Gifts", "Lifestyle", "Travel", "Subscriptions"]
+HEADERS = ["Date", "Product", "Price", "Category", "Spend Type"]
+CATEGORY_TO_SPEND_TYPE_DEFAULT = {
+    "Income": "Income",  # special case
+    "Food": "Essential",
+    "Transport": "Essential",
+    "Education": "Essential",
+    "Shopping": "Discretionary",
+    "Gifts": "Discretionary",
+    "Lifestyle": "Discretionary",
+    "Travel": "One-off",
+    "Subscriptions": "Recurring",
+}

@@ -7,10 +7,16 @@ from typing import List
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from expenditure import Expenditure
-from utils import find_date, find_month, current_date_str, find_month_name, import_spreadsheetID, HEADERS
+from dotenv import load_dotenv
+from utils import find_date, find_month, import_spreadsheetID, HEADERS
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+load_dotenv()
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 def load_google_credentials():
@@ -32,7 +38,7 @@ def load_google_credentials():
 creds = load_google_credentials()
 service = build("sheets", "v4", credentials=creds, cache_discovery=False)
 SPREADSHEET_ID = import_spreadsheetID()
-MONTH_TAB = find_month_name()
+MONTH_TAB = find_month()
 titles = [
     s["properties"]["title"]
     for s in service.spreadsheets()
@@ -52,8 +58,10 @@ def _get_titles() -> List[str]:
 async def write(expenditure: Expenditure):
     try:
         month_tab = _ensure_month_tab()
-        range_name = f"'{month_tab}'!A:C"
-        values = [[expenditure.date, expenditure.product, expenditure.amount]]
+        range_name = f"'{month_tab}'!A:E"
+        values = [[expenditure.date, expenditure.product,
+                   expenditure.amount, expenditure.category, 
+                   expenditure.spend_type]]
         body = {'values': values}
         result = service.spreadsheets().values().append(
             spreadsheetId=import_spreadsheetID(),
@@ -82,136 +90,17 @@ async def create_spreadsheet(service, month: str | None = None) -> str:
         print(f"An error occurred: {error}")
         return error
 
-'''
-Date/Time Handlers
-'''
-
-
-def add_headers(
-    service, spreadsheet_id: str, sheet_id: int, headers: List[str]
-) -> None:
-    """
-    ► Append a header row
-    ► Centre‑align it
-    """
-    # 1) append the row
-    body = {"values": [headers]}
-    service.spreadsheets().values().append(
-        spreadsheetId=spreadsheet_id,
-        range=f"'{sheet_id}'!A1",
-        valueInputOption="USER_ENTERED",
-        body=body,
-    ).execute()
-
-    # 2) centre‑align the header we just wrote
-    requests = [
-        {
-            "repeatCell": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "startRowIndex": 0,
-                    "endRowIndex": 1,
-                    "startColumnIndex": 0,
-                    "endColumnIndex": len(headers),
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "horizontalAlignment": "CENTER",
-                        "textFormat": {"bold": True},
-                    }
-                },
-                "fields": "userEnteredFormat(horizontalAlignment,textFormat)",
-            }
-        }
-    ]
-    service.spreadsheets().batchUpdate(
-        spreadsheetId=spreadsheet_id, body={"requests": requests}
-    ).execute()
-
-
-def ensure_date_break(service, spreadsheet_id: str, sheet_name: str, today: str | None = None) -> None:
-    """
-    Make sure the last written date is *today*; if not, insert two blank rows.
-    """
-    today = today or current_date_str()
-    # Pull the last non‑empty cell in column A
-    col_a = (
-        service.spreadsheets()
-        .values()
-        .get(spreadsheetId=spreadsheet_id, range=f"{sheet_name}!A:A")
-        .execute()
-        .get("values", [])
-    )
-    last_row_idx = len(col_a)
-    if last_row_idx <= 1:       # header only → nothing to check
-        return
-
-    prev_date = col_a[-1][0]    # last value in column A
-    if prev_date != today:
-        logging.info("Date break detected – inserting two rows …")
-        requests = [
-            {
-                "insertDimension": {
-                    "range": {
-                        "sheetId": _get_sheet_id(service, spreadsheet_id, sheet_name),
-                        "dimension": "ROWS",
-                        "startIndex": last_row_idx,
-                        "endIndex": last_row_idx + 2,
-                    },
-                    "inheritFromBefore": False,
-                }
-            }
-        ]
-        service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id, body={"requests": requests}
-        ).execute()
-
 
 '''
 Sheet creation
 '''
-
-
-def create_month_tab(service, spreadsheet_id: str) -> int:
-    """
-    Create a *new worksheet* named for the current month,
-    add headers, return the numeric sheetId.
-    """
-    title = find_month_name()
-    requests = [{"addSheet": {"properties": {"title": title}}}]
-    res = (
-        service.spreadsheets()
-        .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-        .execute()
-    )
-    sheet_id = res["replies"][0]["addSheet"]["properties"]["sheetId"]
-    add_headers(
-        service,
-        spreadsheet_id,
-        sheet_id,
-        HEADERS,
-    )
-    logging.info(f"Created new tab «{title}» ({sheet_id})")
-    return sheet_id
-
-
-def _get_sheet_id(title: str) -> int:
-    meta = service.spreadsheets().get(
-        spreadsheetId=SPREADSHEET_ID, includeGridData=False
-    ).execute()
-    for s in meta["sheets"]:
-        if s["properties"]["title"] == title:
-            return s["properties"]["sheetId"]
-    raise KeyError(f"Tab “{title}” not found")
-
-
-def _add_headers(sheet_id: int) -> None:
+def _add_headers(sheet_id: int, title: str) -> None:
     """Write header row + centre it."""
     logging.info("ADDING HEADERS")
 
     service.spreadsheets().values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"A1:{chr(64+len(HEADERS))}1",
+        range=f"{title}!A1:{chr(64+len(HEADERS))}1",
         valueInputOption="USER_ENTERED",
         body={"values": [HEADERS]},
     ).execute()
@@ -250,13 +139,13 @@ def _create_month_tab(title: str) -> None:
         body={"requests": [{"addSheet": {"properties": {"title": title}}}]},
     ).execute()
     sheet_id = res["replies"][0]["addSheet"]["properties"]["sheetId"]
-    _add_headers(sheet_id)
+    _add_headers(sheet_id, title)
     logging.info(f"Created tab «{title}» ({sheet_id})")
 
 
 def _ensure_month_tab() -> str:
     """Return the current‑month tab name, creating it if missing."""
-    title = find_month_name()
+    title = find_month()
     if title not in _get_titles():
         _create_month_tab(title)
     return title

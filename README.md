@@ -4,7 +4,7 @@
 
 ---
 
-## Setting up the Project
+## Setting up the Project and Running the Bot Locally
 
 ### 1. Create a Python Virtual Environment
 
@@ -25,8 +25,9 @@ Create a new Google Sheet and copy the spreadsheet ID from the URL:
 Add your credentials to a .env file like this:
 
 ```
-TOKEN=<your-telegram-bot-token>
-SPREADSHEET_ID=<your-google-spreadsheet-id>
+ENV=local
+TOKEN="<your-telegram-bot-token>"
+SPREADSHEET_ID="<your-google-spreadsheet-id>"
 ```
 
 
@@ -43,8 +44,39 @@ Run the following script to convert the token.pickle file to a base64 string:
 base64 -i token.pickle -o token.pickle.b64
 ```
 
-### 4. Start the bot! 🎉
+### 4. Add google token into env file
+Open the `token.pickle.b64` file and copy its content. Then, add it to your .env file like this:
+```
+GOOGLE_TOKEN_PICKLE_B64="<your-base64-encoded-google-token>"
+```
+
+### 5. Install dependencies
+```
+pip install -r requirements.txt
+```
+
+### 6. Start the bot! 🎉
 
 ```
 python bot.py
+```
+
+## Telegram Bot Deployment
+This bot is deployed using Railway. To set up webhooks, use the following API endpoints:
+
+#### Delete Webhook
+
+```
+https://api.telegram.org/bot<TOKEN>/deleteWebhook
+```
+
+#### Get Webhook Info
+```
+https://api.telegram.org/bot<TOKEN>/getWebhookInfo
+```
+
+#### Set Webhook 
+
+```
+https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<your-railway-domain>/webhook
 ```

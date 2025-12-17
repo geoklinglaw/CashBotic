@@ -24,8 +24,6 @@ WAITING_FOR_CATEGORY_CHOICE = 1
 SELECTING_DATE = 2
 
 ### COMMAND HANDLERS ####
-
-
 async def start_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -77,7 +75,7 @@ def parse_product_price(user_input: str) -> Expenditure:
     """
     product, price = user_input.split('-')
     price = float(price)
-    date = find_date().strftime("%x")
+    date = find_date()
     return Expenditure(product, price, date)
 
 
@@ -122,7 +120,8 @@ async def save_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("An error occurred. Please start again.")
         return ConversationHandler.END
     expenditure.category = category
-    logging.info(f"Expenditure updated with category: {category}")
+    expenditure.set_spend_type()
+    logging.info(f"Expenditure updated with category: {category} and spend type {expenditure.spend_type}")
     await query.edit_message_text(f"Category '{category}' chosen.")
 
     result = await write_to_spreadsheet(expenditure, update, context)
@@ -166,8 +165,6 @@ async def write_to_spreadsheet(expenditure: Expenditure, update: Update, context
         return WAITING_FOR_EXPENSE_INPUT
 
 # Calendar handler to display the calendar
-
-
 async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Please select a date:",
@@ -176,8 +173,6 @@ async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SELECTING_DATE
 
 # Inline handler to process calendar interactions
-
-
 async def inline_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -256,9 +251,12 @@ async def telegram_webhook(request: Request):
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(
-        "bot:app",
-        host="0.0.0.0",
-        port=port,
-    )
+    if os.getenv("ENV") == "local":
+        application.run_polling()
+    else:
+        port = int(os.environ.get("PORT", 8080))
+        uvicorn.run(
+            "bot:app",
+            host="0.0.0.0",
+            port=port,
+        )

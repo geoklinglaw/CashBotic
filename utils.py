@@ -95,7 +95,7 @@ def format_insights_message(insights: dict) -> str:
     lines.append("*Top Categories*")
     for k, v in categories.items():
         if safe(v) != "$0.00":
-            lines.append(f"•{k}: {escape_markdown_v2(v)}")
+            lines.append(f"• {k}: {escape_markdown_v2(v)}")
 
     lines.append(f"\n\n*Total Spending*")
     lines.append(f"{escape_markdown_v2(safe(insights['total']))}")

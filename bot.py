@@ -10,9 +10,9 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import telegramcalendar
 
-from spreadsheet import write
+from spreadsheet import write, get_insights
 from expenditure import Expenditure
-from utils import find_date, chunk_list, KEYBOARD_CATEGORIES, format_calendar_date, import_token
+from utils import find_date, chunk_list, CATEGORIES, format_calendar_date, import_token, format_insights_message
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,6 +24,8 @@ WAITING_FOR_CATEGORY_CHOICE = 1
 SELECTING_DATE = 2
 
 ### COMMAND HANDLERS ####
+
+
 async def start_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -98,7 +100,7 @@ async def validate_and_prompt_category(update: Update, context: ContextTypes.DEF
         context.user_data["expenditure"] = expenditure
 
         keyboard = [[InlineKeyboardButton(cat, callback_data=cat) for cat in row]
-                    for row in chunk_list(KEYBOARD_CATEGORIES, 3)]
+                    for row in chunk_list(CATEGORIES, 3)]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
         return WAITING_FOR_CATEGORY_CHOICE
@@ -121,7 +123,8 @@ async def save_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     expenditure.category = category
     expenditure.set_spend_type()
-    logging.info(f"Expenditure updated with category: {category} and spend type {expenditure.spend_type}")
+    logging.info(
+        f"Expenditure updated with category: {category} and spend type {expenditure.spend_type}")
     await query.edit_message_text(f"Category '{category}' chosen.")
 
     result = await write_to_spreadsheet(expenditure, update, context)
@@ -165,6 +168,8 @@ async def write_to_spreadsheet(expenditure: Expenditure, update: Update, context
         return WAITING_FOR_EXPENSE_INPUT
 
 # Calendar handler to display the calendar
+
+
 async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Please select a date:",
@@ -173,6 +178,8 @@ async def calendar_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SELECTING_DATE
 
 # Inline handler to process calendar interactions
+
+
 async def inline_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -186,11 +193,40 @@ async def inline_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return ConversationHandler.END
     return SELECTING_DATE
 
+# Retrieve insights from google sheets
+async def retrieve_insights(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f"Retrieving insights... 📊"
+    )
+
+    try:
+        insights = get_insights()
+        message = format_insights_message(insights)
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            parse_mode="MarkdownV2"
+        )
+
+    except Exception as e:
+        logging.exception("Failed to retrieve insights")
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=(
+                "⚠️ *Unable to retrieve insights right now.*\n\n"
+                "Please try again later."
+            ),
+            parse_mode="MarkdownV2"
+        )
+
+
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('Operation cancelled.')
     return ConversationHandler.END
-
 
 
 # Deployment
@@ -229,12 +265,15 @@ past_handler = ConversationHandler(
 )
 
 start_handler = CommandHandler('start', start_message)
+insights_handler = CommandHandler('insights', retrieve_insights)
 # past_handler = CommandHandler('past', past_command)
 application.add_handler(calendar_conversation)
 
 application.add_handler(start_handler)
 application.add_handler(oneoff_handler)
 application.add_handler(past_handler)
+application.add_handler(insights_handler)
+
 
 @app.on_event("startup")
 async def on_startup():
@@ -247,7 +286,6 @@ async def telegram_webhook(request: Request):
     update = Update.de_json(data, application.bot)
     await application.process_update(update)
     return {"ok": True}
-
 
 
 if __name__ == '__main__':

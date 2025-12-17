@@ -34,14 +34,17 @@ def find_month(date_str: str | None = None) -> str:
     mm = date_str[5:7]
     return DATES[mm]
 
+
 def find_date() -> str:
     """dd/MM/yyyy in Asia/Singapore (GMT+8)."""
     sg = ZoneInfo("Asia/Singapore")
     return datetime.now(tz=sg).strftime("%Y-%m-%d")
 
+
 def escape_markdown_v2(text):
-    escape_chars = '_*[]()~`>#+-=|{}.!'
+    escape_chars = '_[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in text)
+
 
 def chunk_list(lst, n):
     """Chunk a list into sublists of size n."""
@@ -60,6 +63,46 @@ def format_calendar_date(raw_date):
         return raw_date
 
 
+# format insights msg
+def format_insights_message(insights: dict) -> str:
+    def safe(val):
+        return val if val not in ("", None) else "0"
+
+    avg = insights["averages"]
+    spend = insights["spend_types"]
+    categories = insights["category_breakdown"]
+
+    lines = []
+
+    lines.append("📈 *This Month’s Insights*\n")
+
+    lines.append("*Averages*")
+    lines.append(f"• Weekday: {escape_markdown_v2(safe(avg['weekday']))}")
+    lines.append(f"• Weekend: {escape_markdown_v2(safe(avg['weekend']))}")
+    lines.append(
+        f"• Difference: {escape_markdown_v2(safe(avg['percentage_diff']))}\n")
+
+    lines.append("*Spend Types*")
+    lines.append(
+        f"• Essential: {escape_markdown_v2(safe(spend['essential']))}")
+    lines.append(
+        f"• Discretionary: {escape_markdown_v2(safe(spend['discretionary']))}")
+    lines.append(
+        f"• Recurring: {escape_markdown_v2(safe(spend['recurring']))}")
+    lines.append(
+        f"• One\\-off: {escape_markdown_v2(safe(spend['one_off']))}\n")
+
+    lines.append("*Top Categories*")
+    for k, v in categories.items():
+        if safe(v) != "$0.00":
+            lines.append(f"•{k}: {escape_markdown_v2(v)}")
+
+    lines.append(f"\n\n*Total Spending*")
+    lines.append(f"{escape_markdown_v2(safe(insights['total']))}")
+
+    return "\n".join(lines)
+
+
 DATES = {
     '01': 'January',
     '02': 'February',
@@ -76,8 +119,8 @@ DATES = {
 }
 
 # STANDARD KEYBOARDS
-KEYBOARD_CATEGORIES = ["Income", "Food", "Transport", "Education",
-                       "Shopping", "Gifts", "Lifestyle", "Travel", "Subscriptions"]
+CATEGORIES = ["Income", "Food", "Transport", "Education",
+              "Shopping", "Gifts", "Lifestyle", "Travel", "Subscriptions"]
 HEADERS = ["Date", "Product", "Price", "Category", "Spend Type"]
 CATEGORY_TO_SPEND_TYPE_DEFAULT = {
     "Income": "Income",  # special case

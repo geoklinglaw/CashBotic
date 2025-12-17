@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from expenditure import Expenditure
 from dotenv import load_dotenv
-from utils import find_date, find_month, import_spreadsheetID, HEADERS
+from utils import find_date, find_month, import_spreadsheetID, HEADERS, CATEGORIES
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -60,7 +60,7 @@ async def write(expenditure: Expenditure):
         month_tab = _ensure_month_tab()
         range_name = f"'{month_tab}'!A:E"
         values = [[expenditure.date, expenditure.product,
-                   expenditure.amount, expenditure.category, 
+                   expenditure.amount, expenditure.category,
                    expenditure.spend_type]]
         body = {'values': values}
         result = service.spreadsheets().values().append(
@@ -74,26 +74,11 @@ async def write(expenditure: Expenditure):
         logging.exception(f"Error writing to spreadsheet: {e}")
         return None
 
-
-async def create_spreadsheet(service, month: str | None = None) -> str:
-    try:
-        month = month or find_month()
-        spreadsheet = {"properties": {"title": month}}
-        spreadsheet = (
-            service.spreadsheets()
-            .create(body=spreadsheet, fields=import_spreadsheetID())
-            .execute()
-        )
-        print(f"Spreadsheet ID: {(spreadsheet.get(import_spreadsheetID()))}")
-        return spreadsheet.get("spreadsheetId")
-    except HttpError as error:
-        print(f"An error occurred: {error}")
-        return error
-
-
 '''
 Sheet creation
 '''
+
+
 def _add_headers(sheet_id: int, title: str) -> None:
     """Write header row + centre it."""
     logging.info("ADDING HEADERS")
@@ -149,3 +134,73 @@ def _ensure_month_tab() -> str:
     if title not in _get_titles():
         _create_month_tab(title)
     return title
+
+
+def get_insights() -> dict:
+    monthly_results = fetch_monthly_insights(find_month())
+    insights = parse_monthly_insights(monthly_results)
+    logging.info("INSIGHTS 123")
+    logging.info(insights)
+    return insights
+
+
+def fetch_monthly_insights(month_tab):
+    ranges = [
+        f"'{month_tab}'!G2:H11",   # category breakdown
+        f"'{month_tab}'!J3",       # avg weekday
+        f"'{month_tab}'!J6",       # avg weekend
+        f"'{month_tab}'!J9",       # percentage diff
+        f"'{month_tab}'!G14",      # recurring
+        f"'{month_tab}'!G17",      # essential
+        f"'{month_tab}'!G20",      # discretionary
+        f"'{month_tab}'!G23",      # one-off
+        f"'{month_tab}'!H25",      # total
+    ]
+
+    result = service.spreadsheets().values().batchGet(
+        spreadsheetId=import_spreadsheetID(),
+        ranges=ranges,
+        valueRenderOption="FORMATTED_VALUE"
+    ).execute()
+
+    return result.get("valueRanges", [])
+
+
+def parse_monthly_insights(value_ranges):
+    # 1. Category breakdown
+    rows = value_ranges[0].get("values", [])
+
+    category_breakdown = {
+        row[0]: row[1] if len(row) > 1 else "0"
+        for row in rows
+    }
+
+    # 2. Averages
+    avg_weekday = value_ranges[1].get("values", [["0"]])[0][0]
+    avg_weekend = value_ranges[2].get("values", [["0"]])[0][0]
+    pct_diff = value_ranges[3].get("values", [["N/A"]])[0][0]
+
+    # 3. Spend types
+    recurring = value_ranges[4].get("values", [["0"]])[0][0]
+    essential = value_ranges[5].get("values", [["0"]])[0][0]
+    discretionary = value_ranges[6].get("values", [["0"]])[0][0]
+    one_off = value_ranges[7].get("values", [["0"]])[0][0]
+
+    # 4. Total
+    total = value_ranges[8].get("values", [["0"]])[0][0]
+    
+    return {
+        "category_breakdown": category_breakdown,
+        "averages": {
+            "weekday": avg_weekday,
+            "weekend": avg_weekend,
+            "percentage_diff": pct_diff,
+        },
+        "spend_types": {
+            "recurring": recurring,
+            "essential": essential,
+            "discretionary": discretionary,
+            "one_off": one_off,
+        },
+        "total": total
+    }
